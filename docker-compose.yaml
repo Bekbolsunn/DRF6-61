@@ -4,19 +4,23 @@ services:
   web:
     build:
       context: .
-    command: sh -c "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-    ports:
-      - "7001:8000"
+    command: sh /app/entrypoint.sh
+    expose:
+      - 8000
+    container_name: web
     env_file:
       .env
     volumes:
       - .:/app
+      - back_media:/app/media
+      - back_static:/app/static
     depends_on:
       - postgres
       - redis
 
   postgres:
     image: postgres:16
+    container_name: postgres
     environment:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USER}
@@ -26,6 +30,7 @@ services:
 
   redis:
     image: redis:7
+    container_name: redis
     volumes:
       - redis-data:/data
 
@@ -33,6 +38,7 @@ services:
     build:
       context: .
     command: celery -A shop_api worker --loglevel=info
+    container_name: worker
     depends_on:
       - redis
     env_file:
@@ -44,6 +50,7 @@ services:
     build:
       context: .
     command: celery -A shop_api beat --loglevel=info
+    container_name: beat
     depends_on:
       - redis
     env_file:
@@ -55,6 +62,7 @@ services:
     build:
       context: .
     command: celery -A shop_api flower --port=5555
+    container_name: flower
     ports:
       - "5556:5555"
     depends_on:
@@ -64,6 +72,20 @@ services:
     volumes:
       - .:/app
 
+  nginx:
+    image: nginx:1.25
+    container_name: nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+    volumes:
+      - back_media:/app/media
+      - back_static:/app/static
+      - ./nginx.conf:/etc/nginx/conf.d/deafult.conf
+
 volumes:
   db-data:
   redis-data:
+  back_media:
+  back_static:
